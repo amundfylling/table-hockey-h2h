@@ -9,6 +9,7 @@ Tables (in order)
 
 import re, numpy as np
 import streamlit as st
+st.set_page_config(page_title="Table-hockey H2H", layout="wide")  # 👈 new
 import pandas as pd
 
 # ── CONFIG ────────────────────────────────────────────────────────────
