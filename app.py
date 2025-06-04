@@ -237,7 +237,7 @@ for col, player, stats in [(c1, p1, tot_p1), (c2, p2, tot_p2)]:
         st.metric("Losses",         f"{stats['L']:,}")
         st.metric("Win Rate",       f"{stats['WR']} %")
         st.metric("Avg Goals For",  f"{stats['GF']:.2f}")
-        st.metric("Avg Goals Ag.",  f"{stats['GA']:.2f}")
+        st.metric("Avg Goals Against",  f"{stats['GA']:.2f}")
 
 
 
