@@ -10,7 +10,7 @@ app.py – Table-hockey H2H viewer
 import re, numpy as np, pandas as pd, streamlit as st
 
 # ── PAGE CONFIG & THEME LOCK ────────────────────────────────────────
-st.set_page_config(page_title="Table-hockey H2H")
+st.set_page_config(page_title="Table-hockey H2H", layout ="wide")
 
 
 
@@ -103,8 +103,8 @@ c1, c2 = st.columns(2, gap="small", border = True)
 for col,pl,st_dict in [(c1,p1,stats(current,p1,p2)),
                        (c2,p2,stats(current,p2,p1))]:
     with col:
-        st.markdown(f"#### {pl}")
-        st.metric("Games Played",f"{st_dict['GP']:,}")
+        st.markdown(f"##### {pl}")
+        st.metric("Games Played",f"{st_dict['GP']:,}", )
         st.metric("Wins",f"{st_dict['W']:,}")
         st.metric("Losses",f"{st_dict['L']:,}")
         st.metric("Win Rate",f"{st_dict['WR']} %")
