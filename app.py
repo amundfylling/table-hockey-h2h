@@ -99,7 +99,7 @@ if not po.empty and "RoundNumber" in po.columns:
 
 # ── STAT CARDS ──────────────────────────────────────────────────────
 current=rr if view=="Round-robin" else po
-c1, c2 = st.columns(2, gap="small")
+c1, c2 = st.columns(2, gap="small", border = True)
 for col,pl,st_dict in [(c1,p1,stats(current,p1,p2)),
                        (c2,p2,stats(current,p2,p1))]:
     with col:
