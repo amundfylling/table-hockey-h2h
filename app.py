@@ -12,48 +12,6 @@ import re, numpy as np, pandas as pd, streamlit as st
 # ── PAGE CONFIG & THEME LOCK ────────────────────────────────────────
 st.set_page_config(page_title="Table-hockey H2H", layout="wide")
 
-st.markdown(
-    """
-    <style>
-      /* hide the theme-switch drop-down / hamburger item */
-      button[kind="theme"], .stThemeSwitcherPopoverTarget {visibility:hidden;}
-
-      /* ── CARD ROW: mobile behaviour ─────────────────────────────── */
-      @media (max-width:768px){
-        /* keep the first two columns on the same row,
-           but allow them to shrink below their content width */
-        div[data-testid="stHorizontalBlock"]{
-          flex-wrap:nowrap!important;          /* no wrapping  */
-        }
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(-n+2){
-          flex: 0 0 50%!important;             /* 50 % each    */
-          max-width:50%!important;
-          min-width:0!important;               /* ← allow shrink */
-          box-sizing:border-box;
-          padding-right:0.25rem;               /* small gutter  */
-        }
-      }
-
-      /* ── scalable font sizes for metrics ────────────────────────── */
-      span[data-testid="stMetricValue"]{
-        font-size:clamp(22px,6vw,40px);
-        font-weight:600;
-      }
-      div[data-testid="stMetricLabel"]{
-        font-size:clamp(12px,3.5vw,18px);
-      }
-      /* tighten player name & margin on narrow phones */
-      @media (max-width:500px){
-        div[data-testid="stMarkdownContainer"] h4{
-          font-size:clamp(14px,5vw,18px);
-          margin:0 0 2px 0;
-        }
-      }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
 
 
 # ── CONSTANTS ────────────────────────────────────────────────────────
