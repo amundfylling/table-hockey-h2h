@@ -15,20 +15,24 @@ st.set_page_config(page_title="Table-hockey H2H", layout="wide")
 st.markdown(
     """
     <style>
-      /* hide theme switcher */
-      button[kind="theme"], .stThemeSwitcherPopoverTarget{visibility:hidden;}
+      /* hide the theme-switcher (desktop + mobile) */
+      button[kind="theme"], .stThemeSwitcherPopoverTarget {visibility:hidden;}
 
-      /* 📱 keep exactly two metric-columns side-by-side on narrow screens */
+      /* ── keep exactly TWO metric columns side-by-side on narrow screens ── */
       @media (max-width: 768px){
-          .stHorizontalBlock{flex-wrap:nowrap!important;}            /* no wrapping */
-          .stHorizontalBlock > div[data-testid="column"]{
-              width:50%!important; flex:0 0 50%!important;
+          div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(-n+2){
+              /*  take up half of the row, prevent wrapping  */
+              flex: 0 0 50% !important;           
+              max-width: 50% !important;
           }
+          /* prevent the block itself from wrapping */
+          div[data-testid="stHorizontalBlock"]{flex-wrap:nowrap!important;}
       }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
 
 
 # ── CONSTANTS ────────────────────────────────────────────────────────
