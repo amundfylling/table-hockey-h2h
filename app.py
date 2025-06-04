@@ -15,24 +15,30 @@ st.set_page_config(page_title="Table-hockey H2H", layout="wide")
 st.markdown(
     """
     <style>
-      /* hide the theme-switcher (desktop + mobile) */
+      /* --- keep cards side-by-side & hide theme toggle (from earlier) --- */
       button[kind="theme"], .stThemeSwitcherPopoverTarget {visibility:hidden;}
+      @media (max-width:768px){
+        div[data-testid="stHorizontalBlock"]>div[data-testid="column"]:nth-child(-n+2){
+          flex:0 0 50%!important; max-width:50%!important;
+        }
+        div[data-testid="stHorizontalBlock"]{flex-wrap:nowrap!important;}
+      }
 
-      /* ── keep exactly TWO metric columns side-by-side on narrow screens ── */
-      @media (max-width: 768px){
-          div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(-n+2){
-              /*  take up half of the row, prevent wrapping  */
-              flex: 0 0 50% !important;           
-              max-width: 50% !important;
-          }
-          /* prevent the block itself from wrapping */
-          div[data-testid="stHorizontalBlock"]{flex-wrap:nowrap!important;}
+      /* --- dynamic font sizes for st.metric --- */
+      /* Value line */
+      span[data-testid="stMetricValue"]{
+        /* clamp(min , preferred, max) → scales with viewport width */
+        font-size:clamp(28px,6vw,48px);
+        font-weight:600;
+      }
+      /* Label line (“Games Played”, “Wins”… ) */
+      div[data-testid="stMetricLabel"]{
+        font-size:clamp(14px,3.5vw,20px);
       }
     </style>
     """,
     unsafe_allow_html=True,
 )
-
 
 
 # ── CONSTANTS ────────────────────────────────────────────────────────
