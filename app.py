@@ -15,16 +15,21 @@ st.set_page_config(page_title="Table-hockey H2H", layout="wide")
 st.markdown(
     """
     <style>
-      button[kind="theme"], .stThemeSwitcherPopoverTarget {visibility:hidden;}
+      /* hide theme switcher */
+      button[kind="theme"], .stThemeSwitcherPopoverTarget{visibility:hidden;}
 
-      /* keep the two metric columns side-by-side on narrow screens */
+      /* 📱 keep exactly two metric-columns side-by-side on narrow screens */
       @media (max-width: 768px){
-          div[data-testid="column"] {width:50% !important; flex:1 1 50%!important;}
+          .stHorizontalBlock{flex-wrap:nowrap!important;}            /* no wrapping */
+          .stHorizontalBlock > div[data-testid="column"]{
+              width:50%!important; flex:0 0 50%!important;
+          }
       }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
 
 # ── CONSTANTS ────────────────────────────────────────────────────────
 DATA_PATH   = "th_matches.parquet"
