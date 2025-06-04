@@ -15,34 +15,45 @@ st.set_page_config(page_title="Table-hockey H2H", layout="wide")
 st.markdown(
     """
     <style>
-      /* hide theme switcher */
+      /* hide the theme-switch drop-down / hamburger item */
       button[kind="theme"], .stThemeSwitcherPopoverTarget {visibility:hidden;}
 
-      /* keep first two columns side-by-side */
-      @media (max-width: 768px){
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(-n+2){
-          flex:0 0 50%!important; max-width:50%!important;
+      /* ── CARD ROW: mobile behaviour ─────────────────────────────── */
+      @media (max-width:768px){
+        /* keep the first two columns on the same row,
+           but allow them to shrink below their content width */
+        div[data-testid="stHorizontalBlock"]{
+          flex-wrap:nowrap!important;          /* no wrapping  */
         }
-        div[data-testid="stHorizontalBlock"]{flex-wrap:nowrap!important;}
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(-n+2){
+          flex: 0 0 50%!important;             /* 50 % each    */
+          max-width:50%!important;
+          min-width:0!important;               /* ← allow shrink */
+          box-sizing:border-box;
+          padding-right:0.25rem;               /* small gutter  */
+        }
       }
 
-      /* dynamic font sizes */
-      span[data-testid="stMetricValue"]{font-size:clamp(24px,5vw,42px);font-weight:600;}
-      div[data-testid="stMetricLabel"] {font-size:clamp(12px,3vw,18px);}
-
-      /* → NEW: shrink card title & metrics further on very narrow phones */
-      @media (max-width: 500px){
-        span[data-testid="stMetricValue"]{font-size:clamp(20px,6vw,30px);}
-        div[data-testid="stMetricLabel"] {font-size:clamp(11px,4vw,16px);}
+      /* ── scalable font sizes for metrics ────────────────────────── */
+      span[data-testid="stMetricValue"]{
+        font-size:clamp(22px,6vw,40px);
+        font-weight:600;
+      }
+      div[data-testid="stMetricLabel"]{
+        font-size:clamp(12px,3.5vw,18px);
+      }
+      /* tighten player name & margin on narrow phones */
+      @media (max-width:500px){
         div[data-testid="stMarkdownContainer"] h4{
-            font-size:clamp(14px,5vw,20px);
-            margin:0 0 4px 0;             /* nuke extra margin */
+          font-size:clamp(14px,5vw,18px);
+          margin:0 0 2px 0;
         }
       }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
 
 
 # ── CONSTANTS ────────────────────────────────────────────────────────
