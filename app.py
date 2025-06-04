@@ -15,25 +15,29 @@ st.set_page_config(page_title="Table-hockey H2H", layout="wide")
 st.markdown(
     """
     <style>
-      /* --- keep cards side-by-side & hide theme toggle (from earlier) --- */
+      /* hide theme switcher */
       button[kind="theme"], .stThemeSwitcherPopoverTarget {visibility:hidden;}
-      @media (max-width:768px){
-        div[data-testid="stHorizontalBlock"]>div[data-testid="column"]:nth-child(-n+2){
+
+      /* keep first two columns side-by-side */
+      @media (max-width: 768px){
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(-n+2){
           flex:0 0 50%!important; max-width:50%!important;
         }
         div[data-testid="stHorizontalBlock"]{flex-wrap:nowrap!important;}
       }
 
-      /* --- dynamic font sizes for st.metric --- */
-      /* Value line */
-      span[data-testid="stMetricValue"]{
-        /* clamp(min , preferred, max) → scales with viewport width */
-        font-size:clamp(28px,6vw,48px);
-        font-weight:600;
-      }
-      /* Label line (“Games Played”, “Wins”… ) */
-      div[data-testid="stMetricLabel"]{
-        font-size:clamp(14px,3.5vw,20px);
+      /* dynamic font sizes */
+      span[data-testid="stMetricValue"]{font-size:clamp(24px,5vw,42px);font-weight:600;}
+      div[data-testid="stMetricLabel"] {font-size:clamp(12px,3vw,18px);}
+
+      /* → NEW: shrink card title & metrics further on very narrow phones */
+      @media (max-width: 500px){
+        span[data-testid="stMetricValue"]{font-size:clamp(20px,6vw,30px);}
+        div[data-testid="stMetricLabel"] {font-size:clamp(11px,4vw,16px);}
+        div[data-testid="stMarkdownContainer"] h4{
+            font-size:clamp(14px,5vw,20px);
+            margin:0 0 4px 0;             /* nuke extra margin */
+        }
       }
     </style>
     """,
@@ -126,7 +130,7 @@ if not po.empty and "RoundNumber" in po.columns:
 
 # ── STAT CARDS ──────────────────────────────────────────────────────
 current=rr if view=="Round-robin" else po
-c1,c2=st.columns(2,gap="large")
+c1, c2 = st.columns(2, gap="small")
 for col,pl,st_dict in [(c1,p1,stats(current,p1,p2)),
                        (c2,p2,stats(current,p2,p1))]:
     with col:
