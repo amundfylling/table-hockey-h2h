@@ -10,7 +10,7 @@ app.py – Table-hockey H2H viewer
 import re, numpy as np, pandas as pd, streamlit as st
 
 # ── PAGE CONFIG & THEME LOCK ────────────────────────────────────────
-st.set_page_config(page_title="Table-hockey H2H", layout="wide")
+st.set_page_config(page_title="Table-hockey H2H")
 
 
 
