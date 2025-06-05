@@ -12,38 +12,6 @@ import re, numpy as np, pandas as pd, streamlit as st
 # ── PAGE CONFIG & THEME LOCK ────────────────────────────────────────
 st.set_page_config(page_title="Table-hockey H2H", layout ="wide")
 
-st.markdown(
-    """
-    <style>
-      /* 1️⃣  KEEP earlier rules …  */
-      button[kind="theme"], .stThemeSwitcherPopoverTarget{visibility:hidden;}
-      @media (max-width:768px){
-        div[data-testid="stHorizontalBlock"]{flex-wrap:nowrap!important;}
-        div[data-testid="stHorizontalBlock"]>div[data-testid="column"]:nth-child(-n+2){
-          flex:0 0 50%!important;max-width:50%!important;min-width:0!important;
-        }
-      }
-      span[data-testid="stMetricValue"]{font-size:clamp(22px,6vw,40px);font-weight:600;}
-      div[data-testid="stMetricLabel"]{font-size:clamp(12px,3.5vw,18px);}
-      @media (max-width:500px){
-        div[data-testid="stMarkdownContainer"] h4{
-          font-size:clamp(14px,5vw,18px);margin:0 0 2px 0;
-        }
-      }
-
-      /* 2️⃣  NEW: enlarge the tab buttons */
-      div[data-testid="stTabs"] button{
-          font-size:3rem;          /* bigger text            */
-          padding:0.6rem 1.4rem;      /* taller / wider target  */
-      }
-      /* Active tab – make text a bit bolder if you like */
-      div[data-testid="stTabs"] button[aria-selected="true"]{
-          font-weight:600;
-      }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 
 
 # ── CONSTANTS ────────────────────────────────────────────────────────
