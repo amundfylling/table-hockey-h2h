@@ -1,101 +1,167 @@
-"""
-app.py – Table-hockey H2H viewer
-────────────────────────────────
-• Mobile-first selectors.
-• Two stat-cards stay side-by-side on all screen sizes.
-• Tables: green winner-cell, 🔗 link, desired columns only, newest-first.
-• Light theme forced; theme switcher hidden.
-"""
-
-import re, numpy as np, pandas as pd, streamlit as st
+import re
+import numpy as np
+import pandas as pd
+import streamlit as st
 
 # ── PAGE CONFIG & THEME LOCK ────────────────────────────────────────
-st.set_page_config(page_title="Table-hockey H2H", layout ="wide")
-
+st.set_page_config(page_title="Table-hockey H2H", layout="wide")
 
 
 # ── CONSTANTS ────────────────────────────────────────────────────────
-DATA_PATH   = "th_matches.parquet"
+DATA_PATH   = "combined_matches.parquet"
 PLAYER_COLS = ["Player1", "Player2"]
 SCORE_COLS  = ["GoalsPlayer1", "GoalsPlayer2"]
-HIDE_COLS   = ["StageID", "Player1ID", "Player2ID", "TournamentID", "StageSequence"]
+HIDE_COLS   = ["Player1", "Player2"]
 MIN_MATCHES = 50
 URL_FMT     = "https://th.sportscorpion.com/eng/tournament/stage/{}/matches/"
 
-ROUNDNUMBER_TO_STAGE = {
-    1/64: "1/64 final", 1/32: "1/32 final", 1/16: "1/16 final", 1/8: "1/8 final",
-    1/4:  "Quarter-final", 1/2: "Semi-final", 1.0: "Final", 0.9: "3rd-place match",
-}
 
 # ── HELPERS ──────────────────────────────────────────────────────────
-def has_alpha(x:str)->bool: return bool(re.search(r"[A-Za-zÆØÅæøå]", str(x)))
+def has_alpha(x: str) -> bool:
+    return bool(re.search(r"[A-Za-zÆØÅæøå]", str(x)))
 
-def orient(row:pd.Series,left:str)->pd.Series:
-    if row[PLAYER_COLS[0]]!=left:
-        row[PLAYER_COLS[0]],row[PLAYER_COLS[1]]=row[PLAYER_COLS[1]],row[PLAYER_COLS[0]]
-        row[SCORE_COLS[0]],row[SCORE_COLS[1]]=row[SCORE_COLS[1]],row[SCORE_COLS[0]]
+
+def orient(row: pd.Series, left: str) -> pd.Series:
+    if row["Player1"] != left:
+        row["Player1"], row["Player2"] = row["Player2"], row["Player1"]
+        row["GoalsPlayer1"], row["GoalsPlayer2"] = row["GoalsPlayer2"], row["GoalsPlayer1"]
     return row
 
-def add_url(df):
+
+def add_url(df: pd.DataFrame) -> pd.DataFrame:
     if "StageID" in df.columns:
-        df["URL"]=df["StageID"].astype(int).map(lambda x:URL_FMT.format(x))
+        df["URL"] = df["StageID"].apply(
+            lambda x: URL_FMT.format(int(x)) if not pd.isna(x) else np.nan
+        )
     return df
 
-def prep_table(df,p1,p2):
-    df=add_url(df.copy()).rename(columns={SCORE_COLS[0]:p1,SCORE_COLS[1]:p2})
-    return df.drop(columns=[c for c in HIDE_COLS+PLAYER_COLS if c in df.columns])\
-             .sort_values("Date",ascending=False)
 
-def hl_winner(p1,p2):
-    def _s(r):
-        css=['']*len(r)
-        if r[p1]>r[p2]: css[r.index.get_loc(p1)]='background-color:#c6f6d5'
-        elif r[p2]>r[p1]: css[r.index.get_loc(p2)]='background-color:#c6f6d5'
+def prep_table(df: pd.DataFrame, p1: str, p2: str) -> pd.DataFrame:
+    df2 = add_url(df.copy()).rename(columns={SCORE_COLS[0]: p1, SCORE_COLS[1]: p2})
+    to_drop = [c for c in HIDE_COLS if c in df2.columns]
+    return df2.drop(columns=to_drop).sort_values("Date", ascending=False)
+
+
+def hl_winner(p1: str, p2: str):
+    def _s(r: pd.Series):
+        css = [""] * len(r)
+        if r[p1] > r[p2]:
+            css[r.index.get_loc(p1)] = "background-color:#c6f6d5"
+        elif r[p2] > r[p1]:
+            css[r.index.get_loc(p2)] = "background-color:#c6f6d5"
         return css
     return _s
 
-def stats(df,left,right):
-    d=df.apply(orient,axis=1,left=left)
-    gp=len(d)
-    wins=(d[SCORE_COLS[0]]>d[SCORE_COLS[1]]).sum()
-    loss=(d[SCORE_COLS[1]]>d[SCORE_COLS[0]]).sum()
-    draw=gp-wins-loss
-    gf,ga=(d[SCORE_COLS[0]].mean() if gp else 0,
-           d[SCORE_COLS[1]].mean() if gp else 0)
-    wr= wins/gp*100 if gp else 0
-    return {"GP":gp,"W":wins,"L":loss,"D":draw,
-            "GF":round(gf,2),"GA":round(ga,2),"WR":round(wr,1)}
+
+def player_stats(df_in: pd.DataFrame, pl: str, opp: str) -> dict:
+    d = df_in.apply(orient, axis=1, left=pl)
+
+    gp   = len(d)
+    wins = (d["GoalsPlayer1"] > d["GoalsPlayer2"]).sum()
+    loss = (d["GoalsPlayer2"] > d["GoalsPlayer1"]).sum()
+    draw = gp - wins - loss
+
+    tight_wins = ((d["GoalsPlayer1"] - d["GoalsPlayer2"]) == 1).sum()
+
+    ot = d[d["Overtime"].str.contains("yes", case=False, na=False)] if "Overtime" in d.columns else pd.DataFrame()
+    ot_games = len(ot)
+    ot_wins  = (ot["GoalsPlayer1"] > ot["GoalsPlayer2"]).sum()
+    ot_loss  = (ot["GoalsPlayer1"] < ot["GoalsPlayer2"]).sum()
+
+    goals_for     = d["GoalsPlayer1"].sum()
+    goals_against = d["GoalsPlayer2"].sum()
+    gd            = goals_for - goals_against
+    avg_f         = d["GoalsPlayer1"].mean() if gp else 0
+    avg_a         = d["GoalsPlayer2"].mean() if gp else 0
+
+    d["Diff"] = abs(d["GoalsPlayer1"] - d["GoalsPlayer2"])
+    wins_mask      = d["GoalsPlayer1"] > d["GoalsPlayer2"]
+
+    biggest_win  = (
+        d[wins_mask]
+        .sort_values(["Diff", "GoalsPlayer1"], ascending=[False, False])
+        .head(1)
+    )
+    biggest_loss = (
+        d[~wins_mask]
+        .sort_values(["Diff", "GoalsPlayer2"], ascending=[False, False])
+        .head(1)
+    )
+
+    def fmt_big(row: pd.DataFrame) -> str:
+        if row.empty:
+            return "–"
+        score = f"{row.iloc[0]['GoalsPlayer1']}-{row.iloc[0]['GoalsPlayer2']}"
+        date_val = row.iloc[0]["Date"]
+        date_str = date_val.strftime("%Y-%m-%d") if isinstance(date_val, pd.Timestamp) else "unknown"
+        return f"{score} ({date_str})"
+
+    return dict(
+        GP        = gp,
+        Wins      = f"{wins} ({wins/gp*100:.1f} %)" if gp else "0",
+        Losses    = f"{loss} ({loss/gp*100:.1f} %)" if gp else "0",
+        Draws     = f"{draw} ({draw/gp*100:.1f} %)" if gp else "0",
+        TightWins = tight_wins,
+        OT        = f"{ot_games} ({ot_wins}/{ot_loss})" if ot_games else "–",
+        GF        = goals_for,
+        GA        = goals_against,
+        GD        = gd,
+        AvgF      = f"{avg_f:.2f}",
+        AvgA      = f"{avg_a:.2f}",
+        BigWin    = fmt_big(biggest_win),
+        BigLoss   = fmt_big(biggest_loss),
+    )
+
 
 # ── LOAD DATA ────────────────────────────────────────────────────────
 @st.cache_data
-def load(): return pd.read_parquet(DATA_PATH)
-df=load()
+def load() -> pd.DataFrame:
+    df = pd.read_parquet(DATA_PATH)
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+    return df
+
+df = load()
+
 
 # ── PLAYER CHOICE UI ────────────────────────────────────────────────
-eligible=(pd.concat([df[c] for c in PLAYER_COLS]).dropna()
-          .loc[lambda s:s.apply(has_alpha)].value_counts()
-          .loc[lambda s:s>=MIN_MATCHES].index.sort_values().tolist())
+eligible = (
+    pd.concat([df[c] for c in PLAYER_COLS])
+      .dropna()
+      .loc[lambda s: s.apply(has_alpha)]
+      .value_counts()
+      .loc[lambda s: s >= MIN_MATCHES]
+      .index
+      .sort_values()
+      .tolist()
+)
+
 st.markdown("### Select players")
-p1=st.selectbox("Player 1",eligible,placeholder="Select Player 1")
-if p1 is None: st.stop()
+p1 = st.selectbox("Player 1", eligible, placeholder="Select Player 1")
+if p1 is None:
+    st.stop()
 
-opps_raw=pd.concat([df.loc[df[PLAYER_COLS[0]]==p1,PLAYER_COLS[1]],
-                    df.loc[df[PLAYER_COLS[1]]==p1,PLAYER_COLS[0]]]).dropna()
-opponents=sorted(set(opps_raw[opps_raw.apply(has_alpha)])&set(eligible)-{p1})
-p2=st.selectbox("Player 2",opponents,placeholder="Select Player 2")
-if p2 is None: st.stop()
+opps_raw = pd.concat([
+    df.loc[df["Player1"] == p1, "Player2"],
+    df.loc[df["Player2"] == p1, "Player1"],
+]).dropna()
+opponents = sorted(set(opps_raw.loc[opps_raw.apply(has_alpha)]) & set(eligible) - {p1})
 
-view=st.radio("",["Round-robin", "Play-off", "Both"],horizontal=True,index=0)
+p2 = st.selectbox("Player 2", opponents, placeholder="Select Player 2")
+if p2 is None:
+    st.stop()
+
+view = st.radio("", ["Round-robin", "Play-off", "Both"], horizontal=True, index=2)
 
 
-
-# ── FILTER MATCHES ─────────────────────────────────────────────────-
-pair=df[((df[PLAYER_COLS[0]]==p1)&(df[PLAYER_COLS[1]]==p2))|
-        ((df[PLAYER_COLS[0]]==p2)&(df[PLAYER_COLS[1]]==p1))].copy()
+# ── FILTER MATCHES FOR SELECTED PAIR ─────────────────────────────────
+pair = df[
+    ((df["Player1"] == p1) & (df["Player2"] == p2)) |
+    ((df["Player1"] == p2) & (df["Player2"] == p1))
+].copy()
 pair = pair.apply(orient, axis=1, left=p1)
-pair["Date"] = pd.to_datetime(pair["Date"], errors="coerce")   # ← NEW
 
-# ── DATE FILTER (two pickers) ──────────────────────────────────────
+
+# ── DATE FILTER ──────────────────────────────────────────────────────
 min_date = pair["Date"].min()
 max_date = pair["Date"].max()
 
@@ -117,202 +183,212 @@ with col_end:
         key="end_date",
     )
 
-# guard: if user flips them, swap so start ≤ end
 if start > end:
     st.warning("Start date is after end date — swapping them.")
     start, end = end, start
 
-# apply filter
-pair = pair[(pair["Date"] >= pd.to_datetime(start)) &
-            (pair["Date"] <= pd.to_datetime(end))]
+pair = pair[
+    (pair["Date"] >= pd.to_datetime(start)) &
+    (pair["Date"] <= pd.to_datetime(end))
+]
 
 
+# ── SPLIT INTO ROUND-ROBIN vs PLAY-OFF ──────────────────────────────
+rr = pair[pair["Stage"].str.contains(r"round[-\s]?robin", case=False, na=False)]
+po = pair[~pair["Stage"].str.contains(r"round[-\s]?robin", case=False, na=False)]
 
-rr=pair[pair["Stage"].str.contains(r"round[-\s]?robin",case=False,na=False)]
-po=pair[~pair["Stage"].str.contains(r"round[-\s]?robin",case=False,na=False)]
 if not po.empty and "RoundNumber" in po.columns:
-    po["PlayoffStage"]=po["RoundNumber"].map(ROUNDNUMBER_TO_STAGE).fillna("Unknown")
-
-# ── ENHANCED METRICS ────────────────────────────────────────────────
-def player_stats(df_in: pd.DataFrame, pl: str, opp: str) -> dict:
-    d = df_in.apply(orient, axis=1, left=pl)
-
-    # ❶ ensure the Date column is datetime
-    if pd.api.types.is_object_dtype(d["Date"]):
-        d["Date"] = pd.to_datetime(d["Date"], errors="coerce")
-        
-    gp  = len(d)
-    wins = (d[SCORE_COLS[0]] > d[SCORE_COLS[1]]).sum()
-    loss = (d[SCORE_COLS[1]] > d[SCORE_COLS[0]]).sum()
-    draw = gp - wins - loss
-
-    # overtime subset (requires column 'Overtime' == 'Yes')
-    ot = d[d["Overtime"].str.contains("yes", case=False, na=False)] if "Overtime" in d.columns else pd.DataFrame()
-    ot_games = len(ot)
-    ot_wins  = (ot[SCORE_COLS[0]] > ot[SCORE_COLS[1]]).sum()
-    ot_loss  = (ot[SCORE_COLS[0]] < ot[SCORE_COLS[1]]).sum()
-
-    goals_for  = d[SCORE_COLS[0]].sum()
-    goals_against = d[SCORE_COLS[1]].sum()
-    gd   = goals_for - goals_against
-    avg_f = d[SCORE_COLS[0]].mean() if gp else 0
-    avg_a = d[SCORE_COLS[1]].mean() if gp else 0
-
-    # biggest win / loss
-    # biggest win / loss  (tie-breakers added)
-    d["Diff"] = abs(d[SCORE_COLS[0]] - d[SCORE_COLS[1]])
-    wins_mask = d[SCORE_COLS[0]] > d[SCORE_COLS[1]]
-
-    biggest_win  = (
-        d[wins_mask]
-        .sort_values(["Diff", SCORE_COLS[0]], ascending=[False, False])   # ← NEW
-        .head(1)
-    )
-
-    biggest_loss = (
-        d[~wins_mask]
-        .sort_values(["Diff", SCORE_COLS[1]], ascending=[False, False])   # ← NEW
-        .head(1)
-    )
-
-    def fmt_big(row):
-        if row.empty:
-            return "–"
-        score = f"{row.iloc[0][SCORE_COLS[0]]}-{row.iloc[0][SCORE_COLS[1]]}"
-        # ❷ safe date-string
-        date_val = row.iloc[0]["Date"]
-        if pd.isna(date_val):
-            date_str = "unknown"
-        elif isinstance(date_val, pd.Timestamp):
-            date_str = date_val.strftime("%Y-%m-%d")
-        else:
-            date_str = str(date_val)[:10]        # fallback for leftovers
-        return f"{score} ({date_str})"
-
-    return dict(
-        GP=gp,
-        Wins=f"{wins} ({wins/gp*100:.1f} %)" if gp else "0",
-        Losses=f"{loss} ({loss/gp*100:.1f} %)" if gp else "0",
-        Draws=f"{draw} ({draw/gp*100:.1f} %)" if gp else "0",
-        OT = f"{ot_games} ({ot_wins}/{ot_loss})" if ot_games else "–",
-        GF=goals_for, GA=goals_against, GD=gd,
-        AvgF=f"{avg_f:.2f}", AvgA=f"{avg_a:.2f}",
-        BigWin=fmt_big(biggest_win), BigLoss=fmt_big(biggest_loss),
-    )
+    po = po.assign(PlayoffStage=po["RoundNumber"].fillna("Unknown"))
 
 
-# choose the data set for stats
+# ── CHOOSE CURRENT SUBSET FOR STATS ─────────────────────────────────
 if view == "Round-robin":
     current_df = rr
 elif view == "Play-off":
     current_df = po
-else:                                 # "Both"
+else:  # Both
     current_df = pd.concat([rr, po], ignore_index=True)
 
 
-# ── MAIN CONTENT IN TABS ────────────────────────────────────────────
-stats_tab, games_tab = st.tabs(["📊 Stats", "📑 All games"], )
+# ── DISPLAY TABS ────────────────────────────────────────────────────
+stats_tab, games_tab = st.tabs(["📊 Stats", "📑 All games"])
+
 
 with stats_tab:
-    st.divider()  # visual separation from the selectors
-
-    # ---- TOP metric: matches played (identical for both) ---------------
+    st.divider()
     matches_played = len(current_df)
     st.metric("Matches Played", matches_played if matches_played else "0")
 
-    # ---- SIDE-BY-SIDE player cards -------------------------------------
     left_stats  = player_stats(current_df, p1, p2)
     right_stats = player_stats(current_df, p2, p1)
 
     c1, c2 = st.columns(2, gap="small", border=True)
-
     for col, pl, data in [(c1, p1, left_stats), (c2, p2, right_stats)]:
         with col:
             with st.expander(pl, expanded=True):
                 st.markdown(f"#### {pl}")
-                st.metric("Wins",    data["Wins"])
-                st.metric("Losses",  data["Losses"])
-                st.metric("Draws",   data["Draws"])
+                st.metric("Wins",       data["Wins"])
+                st.metric("Losses",     data["Losses"])
+                st.metric("Draws",      data["Draws"])
+                st.metric("Tight wins (by 1 goal)", data["TightWins"])
                 if view in ("Play-off", "Both"):
                     st.metric("Overtime (Won/Lost)", data["OT"])
-                st.metric("Goals Scored",      data["GF"])
-                st.metric("Goals Conceded",  data["GA"])
-                st.metric("Goal Diff.",     data["GD"])
-                st.metric("Avg Goals Scored",  data["AvgF"])
-                st.metric("Avg Goals Conceded",  data["AvgA"])
-                st.metric("Biggest Win",    data["BigWin"])
-                st.metric("Biggest Loss",   data["BigLoss"])
+                st.metric("Goals Scored",       data["GF"])
+                st.metric("Goals Conceded",     data["GA"])
+                st.metric("Goal Diff.",         data["GD"])
+                st.metric("Avg Goals Scored",   data["AvgF"])
+                st.metric("Avg Goals Conceded", data["AvgA"])
+                st.metric("Biggest Win",        data["BigWin"])
+                st.metric("Biggest Loss",       data["BigLoss"])
 
 
 with games_tab:
-    # ── TABLES ──────────────────────────────────────────────────────────
-    link_cfg = {"URL": st.column_config.LinkColumn(label="", display_text="🔗")}
-    sty=hl_winner(p1,p2)
+    link_cfg = {"URL": st.column_config.LinkColumn(label="URL", display_text="🔗")}
+    sty = hl_winner(p1, p2)
 
-    # helper to show round-robin table (kept DRY)
     def show_rr():
-        rr_tbl = (prep_table(rr, p1, p2)
-                .drop(columns=[c for c in ["Overtime", "Stage", "PlayoffGameNumber"] if c in rr.columns]))
+        rr_tbl = (
+            prep_table(rr, p1, p2)
+            .drop(columns=[c for c in ["Overtime", "Stage", "PlayoffGameNumber", "StageID"] if c in rr.columns])
+        )
         if "RoundNumber" in rr_tbl.columns:
-            rr_tbl["RoundNumber"] = rr_tbl["RoundNumber"].astype("Int64")
+            rr_tbl["RoundNumber"] = pd.to_numeric(rr_tbl["RoundNumber"], errors="coerce").astype("Int64")
+        rr_tbl["Date"] = rr_tbl["Date"].dt.date
+
         st.subheader("Round-robin")
-        st.dataframe(rr_tbl.style.apply(sty, axis=1),
-                    hide_index=True, use_container_width=True,
-                    column_config=link_cfg)
+        st.dataframe(
+            rr_tbl.style.apply(sty, axis=1),
+            hide_index=True,
+            use_container_width=True,
+            column_config=link_cfg,
+        )
 
-    if view=="Play-off":
-        # series aggregation
+    if view == "Play-off":
+        # ── PLAY-OFF SERIES SCORES ────────────────────────────────────────
         if not po.empty:
-            po["WinnerName"]=np.where(po[SCORE_COLS[0]]>po[SCORE_COLS[1]],p1,
-                                    np.where(po[SCORE_COLS[1]]>po[SCORE_COLS[0]],p2,"Tie"))
-            series=(po.groupby(["RoundNumber","TournamentName","StageID"])
-                    .agg(**{p1:("WinnerName",lambda x:(x==p1).sum()),
-                            p2:("WinnerName",lambda x:(x==p2).sum()),
-                            "Date":("Date","min")})
-                    .reset_index()
-                    .assign(PlayoffStage=lambda d:d["RoundNumber"].map(ROUNDNUMBER_TO_STAGE).fillna("Unknown"))
-                    .pipe(add_url)
-                    .loc[:,[p1,p2,"PlayoffStage","Date","TournamentName","URL"]]
-                    .sort_values("Date",ascending=False))
-            st.subheader("Play-off series scores")
-            st.dataframe(series.style.apply(sty,axis=1),
-                        hide_index=True,use_container_width=True,column_config=link_cfg)
+            po = po.assign(
+                WinnerName=np.where(
+                    po["GoalsPlayer1"] > po["GoalsPlayer2"], p1,
+                    np.where(po["GoalsPlayer2"] > po["GoalsPlayer1"], p2, "Tie")
+                )
+            )
 
-        po_tbl=prep_table(po,p1,p2).drop(columns=[c for c in ["RoundNumber","WinnerName", "Stage"] if c in po.columns])
-        if "PlayoffGameNumber" in po_tbl.columns:
-            po_tbl["PlayoffGameNumber"]=po_tbl["PlayoffGameNumber"].astype("Int64")
+            series = (
+                po.groupby(["RoundNumber", "TournamentName"])
+                  .agg(
+                      **{
+                          p1: ("WinnerName", lambda wins: (wins == p1).sum()),
+                          p2: ("WinnerName", lambda wins: (wins == p2).sum()),
+                          "Date": ("Date", "min"),
+                          "StageID": ("StageID", lambda s: s.dropna().iloc[0] if not s.dropna().empty else np.nan),
+                      }
+                  )
+                  .reset_index()
+                  .assign(
+                      PlayoffStage=lambda df: df["RoundNumber"].fillna("Unknown"),
+                      RoundNumber=lambda df: pd.to_numeric(df["RoundNumber"], errors="coerce").astype("Int64"),
+                      URL=lambda df: df["StageID"].apply(lambda x: URL_FMT.format(int(x)) if not pd.isna(x) else np.nan)
+                  )
+                  .drop(columns=["StageID", "RoundNumber"])
+            )
+
+            series["Date"] = series["Date"].dt.date
+            series = series.sort_values("Date", ascending=False)
+
+            # Reorder so that TournamentName follows player columns
+            cols = [p1, p2, "TournamentName", "PlayoffStage", "Date", "URL"]
+            series = series.loc[:, cols]
+
+            st.subheader("Play-off series scores")
+            st.dataframe(
+                series.style.apply(hl_winner(p1, p2), axis=1),
+                hide_index=True,
+                use_container_width=True,
+                column_config=link_cfg,
+            )
+
+        # ── PLAY-OFF INDIVIDUAL GAMES ────────────────────────────────────
+        po_tbl = add_url(po.copy()).rename(columns={SCORE_COLS[0]: p1, SCORE_COLS[1]: p2})
+        po_tbl["RoundNumber"] = pd.to_numeric(po_tbl["RoundNumber"], errors="coerce").astype("Int64")
+        po_tbl["PlayoffGameNumber"] = po_tbl["PlayoffGameNumber"].astype("Int64")
+        po_tbl["Date"] = po_tbl["Date"].dt.date
+
+        to_drop = [c for c in ["Player1", "Player2", "StageID", "RoundNumber", "WinnerName"] if c in po_tbl.columns]
+        po_tbl = po_tbl.drop(columns=to_drop)
+
+        # Sort by Date DESC, then by PlayoffGameNumber DESC
+        po_tbl = po_tbl.sort_values(["Date", "PlayoffGameNumber"], ascending=[False, False])
+
         st.subheader("Play-off individual games")
-        st.dataframe(po_tbl.style.apply(sty,axis=1),
-                    hide_index=True,use_container_width=True,column_config=link_cfg)
+        st.dataframe(
+            po_tbl.style.apply(sty, axis=1),
+            hide_index=True,
+            use_container_width=True,
+            column_config=link_cfg,
+        )
+
     elif view == "Round-robin":
         show_rr()
-    else:  # "Both"  –– render everything
+
+    else:  # Both
+        # ── PLAY-OFF SERIES SCORES ────────────────────────────────────────
         if not po.empty:
-            po["WinnerName"] = np.where(po[SCORE_COLS[0]] > po[SCORE_COLS[1]], p1,
-                                        np.where(po[SCORE_COLS[1]] > po[SCORE_COLS[0]], p2, "Tie"))
-            series = (po.groupby(["RoundNumber", "TournamentName", "StageID"])
-                        .agg(**{p1: ("WinnerName", lambda x: (x == p1).sum()),
-                                p2: ("WinnerName", lambda x: (x == p2).sum()),
-                                "Date": ("Date", "min")})
-                        .reset_index()
-                        .assign(PlayoffStage=lambda d: d["RoundNumber"]
-                            .map(ROUNDNUMBER_TO_STAGE).fillna("Unknown"))
-                        .pipe(add_url)
-                        .loc[:, [p1, p2, "PlayoffStage", "Date",
-                                "TournamentName", "URL"]]
-                        .sort_values("Date", ascending=False))
+            po = po.assign(
+                WinnerName=np.where(
+                    po["GoalsPlayer1"] > po["GoalsPlayer2"], p1,
+                    np.where(po["GoalsPlayer2"] > po["GoalsPlayer1"], p2, "Tie")
+                )
+            )
+
+            series = (
+                po.groupby(["RoundNumber", "TournamentName"])
+                  .agg(
+                      **{
+                          p1: ("WinnerName", lambda wins: (wins == p1).sum()),
+                          p2: ("WinnerName", lambda wins: (wins == p2).sum()),
+                          "Date": ("Date", "min"),
+                          "StageID": ("StageID", lambda s: s.dropna().iloc[0] if not s.dropna().empty else np.nan),
+                      }
+                  )
+                  .reset_index()
+                  .assign(
+                      PlayoffStage=lambda df: df["RoundNumber"].fillna("Unknown"),
+                      RoundNumber=lambda df: pd.to_numeric(df["RoundNumber"], errors="coerce").astype("Int64"),
+                      URL=lambda df: df["StageID"].apply(lambda x: URL_FMT.format(int(x)) if not pd.isna(x) else np.nan)
+                  )
+                  .drop(columns=["StageID", "RoundNumber"])
+            )
+
+            series["Date"] = series["Date"].dt.date
+            series = series.sort_values("Date", ascending=False)
+            cols = [p1, p2, "TournamentName", "PlayoffStage", "Date", "URL"]
+            series = series.loc[:, cols]
+
             st.subheader("Play-off series scores")
-            st.dataframe(series.style.apply(sty, axis=1),
-                        hide_index=True, use_container_width=True,
-                        column_config=link_cfg)
+            st.dataframe(
+                series.style.apply(hl_winner(p1, p2), axis=1),
+                hide_index=True,
+                use_container_width=True,
+                column_config=link_cfg,
+            )
 
-        po_tbl = prep_table(po, p1, p2)\
-                .drop(columns=[c for c in ["RoundNumber", "WinnerName", "Stage"] if c in po.columns])
-        if "PlayoffGameNumber" in po_tbl.columns:
-            po_tbl["PlayoffGameNumber"] = po_tbl["PlayoffGameNumber"].astype("Int64")
+        # ── PLAY-OFF INDIVIDUAL GAMES ────────────────────────────────────
+        po_tbl = add_url(po.copy()).rename(columns={SCORE_COLS[0]: p1, SCORE_COLS[1]: p2})
+        po_tbl["RoundNumber"] = pd.to_numeric(po_tbl["RoundNumber"], errors="coerce").astype("Int64")
+        po_tbl["PlayoffGameNumber"] = po_tbl["PlayoffGameNumber"].astype("Int64")
+        po_tbl["Date"] = po_tbl["Date"].dt.date
+
+        to_drop = [c for c in ["Player1", "Player2", "StageID", "RoundNumber", "WinnerName"] if c in po_tbl.columns]
+        po_tbl = po_tbl.drop(columns=to_drop)
+        po_tbl = po_tbl.sort_values(["Date", "PlayoffGameNumber"], ascending=[False, False])
+
         st.subheader("Play-off individual games")
-        st.dataframe(po_tbl.style.apply(sty, axis=1),
-                    hide_index=True, use_container_width=True,
-                    column_config=link_cfg)
+        st.dataframe(
+            po_tbl.style.apply(sty, axis=1),
+            hide_index=True,
+            use_container_width=True,
+            column_config=link_cfg,
+        )
 
+        # ── ROUND-ROBIN TABLE ───────────────────────────────────────────
         show_rr()
