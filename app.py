@@ -293,12 +293,11 @@ with games_tab:
             )
 
             series = (
-                po.groupby(["RoundNumber", "TournamentName"])
+                po.groupby(["RoundNumber", "TournamentName", "Date"])
                   .agg(
                       **{
                           p1: ("WinnerName", lambda wins: (wins == p1).sum()),
                           p2: ("WinnerName", lambda wins: (wins == p2).sum()),
-                          "Date": ("Date", "min"),
                           "StageID": ("StageID", lambda s: s.dropna().iloc[0] if not s.dropna().empty else np.nan),
                       }
                   )
@@ -360,12 +359,11 @@ with games_tab:
             )
 
             series = (
-                po.groupby(["RoundNumber", "TournamentName"])
+                po.groupby(["RoundNumber", "TournamentName", "Date"])
                   .agg(
                       **{
                           p1: ("WinnerName", lambda wins: (wins == p1).sum()),
                           p2: ("WinnerName", lambda wins: (wins == p2).sum()),
-                          "Date": ("Date", "min"),
                           "StageID": ("StageID", lambda s: s.dropna().iloc[0] if not s.dropna().empty else np.nan),
                       }
                   )
