@@ -436,11 +436,11 @@ with charts_tab:
         hist,
         x="Goal Difference",
         y="count",
-        text=hist.apply(lambda r: f"{r['count']} ({r['percent']:.1%})", axis=1),
+        text=hist.apply(lambda r: f"{int(r['count'])} ({r['percent']:.1%})", axis=1),
         title="Goal Difference Distribution",
         color_discrete_sequence=[BLUE]   # use NBHF blue
     )
-    fig1.update_traces(textposition="outside")
+    fig1.update_traces(textposition="outside", cliponaxis=False)
     fig1.update_layout(
         bargap=0.2,
         xaxis=dict(dtick=1),
