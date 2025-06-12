@@ -2,9 +2,15 @@ import re
 import numpy as np
 import pandas as pd
 import streamlit as st
+import plotly.express as px
+import plotly.graph_objects as go
+
+
 
 # ── PAGE CONFIG & THEME LOCK ────────────────────────────────────────
 st.set_page_config(page_title="Table-hockey H2H", layout="wide")
+
+
 
 
 # ── CONSTANTS ────────────────────────────────────────────────────────
@@ -118,6 +124,18 @@ def player_stats(df_in: pd.DataFrame, pl: str, opp: str) -> dict:
 def load() -> pd.DataFrame:
     df = pd.read_parquet(DATA_PATH)
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+
+    # list of (TournamentName, Date) to remove
+    exclusions = [
+        ("EM", "2022-06-11"),
+        ("Swedish Masters", "2016-02-13"),
+    ]
+
+    # iteratively filter out matching rows
+    for name, date_str in exclusions:
+        date = pd.to_datetime(date_str)
+        df = df[~((df["TournamentName"] == name) & (df["Date"] == date))]
+
     return df
 
 df = load()
@@ -211,7 +229,8 @@ else:  # Both
 
 
 # ── DISPLAY TABS ────────────────────────────────────────────────────
-stats_tab, games_tab = st.tabs(["📊 Stats", "📑 All games"])
+stats_tab, games_tab, charts_tab = st.tabs(["📊 Stats", "📑 All games", "📈 Charts"])
+
 
 
 with stats_tab:
@@ -313,7 +332,7 @@ with games_tab:
         po_tbl["PlayoffGameNumber"] = po_tbl["PlayoffGameNumber"].astype("Int64")
         po_tbl["Date"] = po_tbl["Date"].dt.date
 
-        to_drop = [c for c in ["Player1", "Player2", "StageID", "RoundNumber", "WinnerName"] if c in po_tbl.columns]
+        to_drop = [c for c in ["Player1", "Player2", "StageID", "RoundNumber", "WinnerName", "Stage"] if c in po_tbl.columns]
         po_tbl = po_tbl.drop(columns=to_drop)
 
         # Sort by Date DESC, then by PlayoffGameNumber DESC
@@ -378,7 +397,7 @@ with games_tab:
         po_tbl["PlayoffGameNumber"] = po_tbl["PlayoffGameNumber"].astype("Int64")
         po_tbl["Date"] = po_tbl["Date"].dt.date
 
-        to_drop = [c for c in ["Player1", "Player2", "StageID", "RoundNumber", "WinnerName"] if c in po_tbl.columns]
+        to_drop = [c for c in ["Player1", "Player2", "StageID", "RoundNumber", "WinnerName", "Stage"] if c in po_tbl.columns]
         po_tbl = po_tbl.drop(columns=to_drop)
         po_tbl = po_tbl.sort_values(["Date", "PlayoffGameNumber"], ascending=[False, False])
 
@@ -392,3 +411,97 @@ with games_tab:
 
         # ── ROUND-ROBIN TABLE ───────────────────────────────────────────
         show_rr()
+
+with charts_tab:
+    import plotly.express as px
+    import numpy as np
+
+    # NBHF colours
+    BLUE  = "#233469"
+    RED   = "#ff4344"
+    YELLOW= "#f9c561"
+    WHITE = "#ffffff"
+
+    # 1) Goal‐Difference Distribution with NBHF blue bars
+    diffs = (current_df["GoalsPlayer1"] - current_df["GoalsPlayer2"]).abs()
+    hist = (
+        diffs.value_counts()
+             .sort_index()
+             .rename_axis("Goal Difference")
+             .reset_index(name="count")
+    )
+    hist["percent"] = hist["count"] / hist["count"].sum()
+
+    fig1 = px.bar(
+        hist,
+        x="Goal Difference",
+        y="count",
+        text=hist.apply(lambda r: f"{r['count']} ({r['percent']:.1%})", axis=1),
+        title="Goal Difference Distribution",
+        color_discrete_sequence=[BLUE]   # use NBHF blue
+    )
+    fig1.update_traces(textposition="outside")
+    fig1.update_layout(
+        bargap=0.2,
+        xaxis=dict(dtick=1),
+        yaxis_title="Count",
+        plot_bgcolor=WHITE,       # white background
+        paper_bgcolor=WHITE
+    )
+    st.plotly_chart(fig1, use_container_width=True)
+
+
+    # 2) Yearly Outcome Proportions with NBHF colours
+    out = current_df.assign(
+        Outcome=np.where(
+            current_df["GoalsPlayer1"] > current_df["GoalsPlayer2"], p1,
+            np.where(current_df["GoalsPlayer1"] < current_df["GoalsPlayer2"], p2, "Draw")
+        ),
+        Year=current_df["Date"].dt.year
+    )
+    grp_counts = (
+        out.groupby(["Year", "Outcome"])
+           .size()
+           .unstack(fill_value=0)
+    )
+    for cat in [p1, "Draw", p2]:
+        if cat not in grp_counts.columns:
+            grp_counts[cat] = 0
+    grp_counts = grp_counts[[p1, "Draw", p2]].sort_index()
+    grp_prop = grp_counts.div(grp_counts.sum(axis=1), axis=0)
+
+    df_counts = grp_counts.reset_index().melt(
+        id_vars="Year", value_vars=[p1, "Draw", p2],
+        var_name="Outcome", value_name="Count"
+    )
+    df_prop = grp_prop.reset_index().melt(
+        id_vars="Year", value_vars=[p1, "Draw", p2],
+        var_name="Outcome", value_name="Proportion"
+    )
+    df_bar = df_counts.merge(df_prop, on=["Year", "Outcome"])
+    df_bar["label"] = df_bar.apply(lambda r: f"{int(r['Count'])}", axis=1)
+
+    fig2 = px.bar(
+        df_bar,
+        x="Year",
+        y="Proportion",
+        color="Outcome",
+        text="label",
+        category_orders={"Outcome": [p1, "Draw", p2]},
+        barmode="stack",
+        title="Win Rate by Year",
+        color_discrete_map={
+            p1: BLUE,     # Player1 = blue
+            "Draw": YELLOW,
+            p2: RED       # Player2 = red
+        }
+    )
+    fig2.update_traces(textposition="inside")
+    fig2.update_layout(
+        yaxis_tickformat=".0%",
+        xaxis=dict(type="category"),
+        yaxis_title="Proportion",
+        plot_bgcolor=WHITE,
+        paper_bgcolor=WHITE
+    )
+    st.plotly_chart(fig2, use_container_width=True)
