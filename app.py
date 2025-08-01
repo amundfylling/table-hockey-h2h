@@ -178,6 +178,10 @@ pair = df[
 ].copy()
 pair = pair.apply(orient, axis=1, left=p1)
 
+if pair.empty:
+    st.info("No matches found between selected players.")
+    st.stop()
+
 
 # ── DATE FILTER ──────────────────────────────────────────────────────
 min_date = pair["Date"].min()
