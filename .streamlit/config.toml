@@ -1,3 +1,0 @@
-# .streamlit/config.toml
-[theme]
-base="light"   # forces the light theme, ignores the user’s preference
